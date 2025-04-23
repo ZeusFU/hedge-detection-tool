@@ -1,0 +1,22 @@
+Using the dataset of futures trades including tradehash, short_long, asset, entry_datetime, market_entries, close_datetime, market_closes, account_id, user_id, quantities_bought, and quantities_sold, analyze hedging behavior by identifying trade pairs that:
+1. Involve the same underlying asset (e.g., treat NQM5 and MNQM5 as equivalent).
+2. Have opposite trade directions (LONG vs SHORT).
+3. Have market entry prices within $5 of each other.
+4. Have entry times overlapping—the entry of one trade must occur within the entry-to-exit duration of the other.
+5. Optionally, have close prices near each other, to support matching.
+6. Can be grouped by:
+    * Same user, different account (self-hedging)
+    * Different users (external coordination)
+For each matched pair:
+* Output a confidence score based on how well they match the above criteria.
+* Tag each pair as either self_hedge or inter_user_hedge.
+* Track cumulative profits from each side of the hedge.
+Summarize:
+* Total number of self_hedge vs inter_user_hedge cases.
+* Number and % of users and accounts involved in hedging behavior.
+* Frequency of matching trades per user.
+* Average confidence score per hedge.
+* Any notable clusters of hedges (same times, same assets).
+Bonus:
+* Highlight any user_id or account_id that appears in a large number of hedge pairs.
+* Detect repeat patterns of this behavior (e.g. same time each day, same price range).

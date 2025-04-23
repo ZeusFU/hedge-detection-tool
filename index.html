@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hedge Detection Analysis</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Hedge Detection Analysis</h1>
+            <p>Upload trading data to identify potential hedging behavior</p>
+        </header>
+
+        <main>
+            <section id="upload-section" class="card">
+                <h2>Upload Trading Data</h2>
+                <div class="upload-container" id="drop-area">
+                    <div class="upload-instructions">
+                        <img src="upload-icon.svg" alt="Upload" id="upload-icon">
+                        <p>Drag and drop your CSV file here</p>
+                        <p>or</p>
+                        <label for="fileInput" class="upload-button">Browse Files</label>
+                        <input type="file" id="fileInput" accept=".csv" hidden>
+                    </div>
+                    <div class="file-info" id="file-info" style="display: none;">
+                        <p id="file-name"></p>
+                        <button id="remove-file">Remove</button>
+                    </div>
+                </div>
+                <div class="parameters-container">
+                    <h3>Analysis Parameters</h3>
+                    <div class="parameter">
+                        <label for="price-threshold">Price Threshold ($):</label>
+                        <input type="number" id="price-threshold" value="5" min="0" step="0.01">
+                    </div>
+                    <div class="parameter">
+                        <label for="confidence-threshold">Minimum Confidence Score:</label>
+                        <input type="number" id="confidence-threshold" value="0.7" min="0" max="1" step="0.05">
+                    </div>
+                    <div class="parameter">
+                        <label for="include-close-price">
+                            <input type="checkbox" id="include-close-price" checked>
+                            Consider close prices in matching
+                        </label>
+                    </div>
+                </div>
+                <button id="analyze-button" class="primary-button" disabled>Analyze Data</button>
+            </section>
+
+            <section id="loading-section" class="card" style="display: none;">
+                <div class="loading-spinner"></div>
+                <p>Analyzing data... This may take a moment.</p>
+            </section>
+
+            <section id="results-section" class="card" style="display: none;">
+                <h2>Analysis Results</h2>
+                
+                <div class="summary-stats">
+                    <h3>Summary Statistics</h3>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <h4>Total Hedge Pairs</h4>
+                            <p id="total-hedges">0</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Self-Hedges</h4>
+                            <p id="self-hedges">0</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Inter-User Hedges</h4>
+                            <p id="inter-user-hedges">0</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Avg. Confidence</h4>
+                            <p id="avg-confidence">0</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Users Involved</h4>
+                            <p id="users-involved">0</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Accounts Involved</h4>
+                            <p id="accounts-involved">0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="visualization-container">
+                    <h3>Visualizations</h3>
+                    <div class="chart-container">
+                        <canvas id="hedge-types-chart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="confidence-distribution-chart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="time-distribution-chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="hedge-pairs-container">
+                    <h3>Detected Hedge Pairs</h3>
+                    <div class="filters">
+                        <div class="filter">
+                            <label for="filter-type">Type:</label>
+                            <select id="filter-type">
+                                <option value="all">All</option>
+                                <option value="self_hedge">Self-Hedge</option>
+                                <option value="inter_user_hedge">Inter-User Hedge</option>
+                            </select>
+                        </div>
+                        <div class="filter">
+                            <label for="filter-confidence">Min Confidence:</label>
+                            <input type="range" id="filter-confidence" min="0" max="1" step="0.05" value="0">
+                            <span id="confidence-value">0</span>
+                        </div>
+                        <div class="filter">
+                            <label for="sort-by">Sort By:</label>
+                            <select id="sort-by">
+                                <option value="confidence-desc">Confidence (High to Low)</option>
+                                <option value="confidence-asc">Confidence (Low to High)</option>
+                                <option value="time-desc">Time (Newest First)</option>
+                                <option value="time-asc">Time (Oldest First)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="hedge-pairs-table">
+                            <thead>
+                                <tr>
+                                    <th>Pair ID</th>
+                                    <th>Type</th>
+                                    <th>Asset</th>
+                                    <th>Entry Times</th>
+                                    <th>Entry Prices</th>
+                                    <th>Confidence</th>
+                                    <th>Net Profit</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="hedge-pairs-body">
+                                <!-- Rows will be added dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="pagination">
+                        <button id="prev-page" disabled>&lt; Previous</button>
+                        <span id="page-info">Page 1 of 1</span>
+                        <button id="next-page" disabled>Next &gt;</button>
+                    </div>
+                </div>
+
+                <div class="notable-findings">
+                    <h3>Notable Findings</h3>
+                    <div id="notable-findings-content">
+                        <!-- Content will be added dynamically -->
+                    </div>
+                </div>
+
+                <div class="export-options">
+                    <h3>Export Results</h3>
+                    <button id="export-csv" class="secondary-button">Export to CSV</button>
+                    <button id="export-json" class="secondary-button">Export to JSON</button>
+                    <button id="export-pdf" class="secondary-button">Export to PDF</button>
+                </div>
+            </section>
+
+            <div id="pair-details-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close-modal">&times;</span>
+                    <h2>Hedge Pair Details</h2>
+                    <div id="pair-details-content">
+                        <!-- Content will be added dynamically -->
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 Hedge Detection Analysis Tool</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
