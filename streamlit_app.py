@@ -12,12 +12,12 @@ uploaded_file = st.file_uploader("Upload CSV Trade Dataset", type=["csv"])
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
-    # Normalize column names
-    df.columns = df.columns.str.strip().str.lower()
-
-    # Parse datetime columns
-    df['open_datetime'] = pd.to_datetime(df['open_datetime'])
-    df['close_datetime'] = pd.to_datetime(df['close_datetime'])
+       # Parse datetime columns with fallback
+    df['open_datetime'] = pd.to_datetime(df['open_datetime'], errors='coerce')
+    df['close_datetime'] = pd.to_datetime(df['close_datetime'], errors='coerce')
+    
+    # Drop rows where datetime parsing failed
+    df = df.dropna(subset=['open_datetime', 'close_datetime'])
 
     # Normalize asset types (e.g. NQ == MNQ)
     def normalize_asset(asset):
