@@ -9,8 +9,11 @@ st.title("🔍 Hedge Trade Detection & Analysis")
 # Upload file
 uploaded_file = st.file_uploader("Upload CSV Trade Dataset", type=["csv"])
 
+
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
+
+    df = pd.read_csv(uploaded_file, low_memory=False)
 
        # Parse datetime columns with fallback
     df['open_datetime'] = pd.to_datetime(df['open_datetime'], errors='coerce')
