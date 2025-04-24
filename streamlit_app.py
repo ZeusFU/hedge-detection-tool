@@ -6,9 +6,7 @@ import os
 from datetime import datetime
 import re
 
-# Import the analysis functions from the original app
-from app import normalize_asset_name, parse_list_field, calculate_confidence_score, find_notable_patterns
-
+# Set page configuration
 st.set_page_config(page_title="Hedge Detection Tool", layout="wide")
 
 st.title("Hedge Detection Analysis Tool")
@@ -23,7 +21,126 @@ include_close_price = st.sidebar.checkbox("Include Close Price in Analysis", val
 # File upload widget
 uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"])
 
-# Functions from the original app
+# Functions from the original app, now included directly
+def normalize_asset_name(asset):
+    """Normalize asset names (e.g., treat NQM5 and MNQM5 as equivalent)"""
+    # Remove any non-alphanumeric characters
+    asset = re.sub(r'[^a-zA-Z0-9]', '', asset)
+    
+    # Basic normalization rules
+    if 'NQ' in asset.upper():
+        return 'NQ'
+    if 'ES' in asset.upper():
+        return 'ES'
+    if 'CL' in asset.upper():
+        return 'CL'
+    
+    return asset
+
+def parse_list_field(field):
+    """Parse list fields from string representation"""
+    if isinstance(field, str):
+        # Remove brackets and split by comma
+        field = field.strip('[]').split(',')
+        # Convert to float if possible
+        try:
+            return [float(x.strip()) for x in field if x.strip()]
+        except ValueError:
+            return [x.strip() for x in field if x.strip()]
+    return field
+
+def calculate_confidence_score(trade1, trade2, price_diff, price_threshold, time_overlap, include_close_price):
+    """Calculate confidence score based on how well the pair matches hedging criteria"""
+    score = 0
+    
+    # Price similarity (closer prices = higher score)
+    score += 0.4 * (1 - price_diff / price_threshold)
+    
+    # Time overlap
+    score += 0.3
+    
+    # If including close prices in matching
+    if include_close_price:
+        close_price_diff = abs(float(trade1['avg_market_close']) - float(trade2['avg_market_close']))
+        
+        # Close price similarity (closer prices = higher score)
+        score += 0.3 * (1 - min(close_price_diff / price_threshold, 1))
+    else:
+        # If not considering close prices, distribute the weight elsewhere
+        score += 0.15  # Add half of the potential close price score as a baseline
+    
+    # Quantity similarity (optional bonus)
+    qty1 = float(trade1['total_contracts'])
+    qty2 = float(trade2['total_contracts'])
+    if qty1 == qty2:
+        score += 0.1
+    
+    return min(max(score, 0), 1)  # Ensure score is between 0 and 1
+
+def find_notable_patterns(hedge_pairs, df):
+    """Find notable patterns in the hedge pairs"""
+    if not hedge_pairs:
+        return {
+            'frequent_users': [],
+            'peak_hours': [],
+            'asset_distribution': []
+        }
+    
+    # Find users with multiple hedge pairs
+    user_hedge_counts = {}
+    for pair in hedge_pairs:
+        user1 = pair['trade1']['user_id']
+        user2 = pair['trade2']['user_id']
+        
+        user_hedge_counts[user1] = user_hedge_counts.get(user1, 0) + 1
+        if user1 != user2:
+            user_hedge_counts[user2] = user_hedge_counts.get(user2, 0) + 1
+    
+    # Find users with high hedge counts
+    frequent_users = [
+        {'user_id': user_id, 'count': count}
+        for user_id, count in user_hedge_counts.items()
+        if count >= 3
+    ]
+    frequent_users.sort(key=lambda x: x['count'], reverse=True)
+    
+    # Check for time patterns (e.g., same time of day)
+    hour_patterns = {}
+    for pair in hedge_pairs:
+        # Convert timestamp to datetime
+        entry_time = datetime.strptime(pair['trade1']['entry_time'], '%Y-%m-%d %H:%M:%S')
+        hour = entry_time.hour
+        
+        hour_patterns[hour] = hour_patterns.get(hour, 0) + 1
+    
+    # Find peak hours (hours with at least 80% of the max count)
+    max_hour_count = max(hour_patterns.values()) if hour_patterns else 0
+    peak_hours = [
+        {'hour': hour, 'count': count, 'percentage': count / len(hedge_pairs) * 100}
+        for hour, count in hour_patterns.items()
+        if count >= max_hour_count * 0.8
+    ]
+    peak_hours.sort(key=lambda x: x['count'], reverse=True)
+    
+    # Check for asset patterns
+    asset_patterns = {}
+    for pair in hedge_pairs:
+        asset = pair['asset']
+        asset_patterns[asset] = asset_patterns.get(asset, 0) + 1
+    
+    asset_distribution = [
+        {'asset': asset, 'count': count, 'percentage': count / len(hedge_pairs) * 100}
+        for asset, count in asset_patterns.items()
+    ]
+    asset_distribution.sort(key=lambda x: x['count'], reverse=True)
+    
+    return {
+        'frequent_users': frequent_users,
+        'peak_hours': peak_hours,
+        'asset_distribution': asset_distribution
+    }
+
+# Original function for finding hedge pairs
 def find_hedge_pairs(df, price_threshold, confidence_threshold, include_close_price):
     """Find potential hedge pairs in the trading data"""
     # Clean data - ensure required columns exist
@@ -71,15 +188,15 @@ def find_hedge_pairs(df, price_threshold, confidence_threshold, include_close_pr
     for i, (asset, group) in enumerate(asset_groups):
         trades = group.to_dict('records')
         
-        for i in range(len(trades)):
-            trade1 = trades[i]
+        for j in range(len(trades)):
+            trade1 = trades[j]
             
             # Skip if entry or close time is missing
             if pd.isna(trade1['entry_time']) or pd.isna(trade1['close_time']):
                 continue
                 
-            for j in range(i + 1, len(trades)):
-                trade2 = trades[j]
+            for k in range(j + 1, len(trades)):
+                trade2 = trades[k]
                 
                 # Skip if entry or close time is missing
                 if pd.isna(trade2['entry_time']) or pd.isna(trade2['close_time']):
